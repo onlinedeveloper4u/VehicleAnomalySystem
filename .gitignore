@@ -1,0 +1,27 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Models and Data (Optional: usually ignored if large)
+# models/*.pkl
+# models/*.pth
+api_inference.log
+
+# IDEs
+.idea/
+.vscode/
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Reports
+reports/

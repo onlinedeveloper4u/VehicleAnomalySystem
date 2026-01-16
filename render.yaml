@@ -7,3 +7,5 @@ services:
     envVars:
       - key: API_KEY
         generateValue: true
+      - key: MODEL_VERSION
+        value: v1

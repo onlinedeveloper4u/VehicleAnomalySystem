@@ -18,7 +18,7 @@ def run_evaluation():
     df = pd.read_csv(data_path)
     
     # 2. Load Models
-    detector = AnomalyDetector(model_dir="models")
+    detector = AnomalyDetector(model_dir="models", version="v_temporal")
     
     # 3. Predict on a sample to speed up (or full dataset if small enough)
     # The dataset has 175k rows. Let's use 20k for evaluation to be fast.

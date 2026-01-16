@@ -123,7 +123,6 @@ if __name__ == "__main__":
     raw_data = pd.read_csv("data/ev_dataset.csv") # Assuming run from root
     preprocessor = DataPreprocessor()
     X_scaled = preprocessor.fit_transform(raw_data)
-    preprocessor.save("models/scaler.pkl")
-    
-    trainer = ModelTrainer(model_dir="models")
+    trainer = ModelTrainer(model_dir="models", version="v1")
+    preprocessor.save(os.path.join(trainer.model_dir, "scaler.pkl"))
     trainer.train_all(X_scaled)

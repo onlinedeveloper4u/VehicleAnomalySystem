@@ -26,3 +26,8 @@ class PredictionResponse(BaseModel):
     is_anomaly: List[bool]
     votes: List[int]
     details: Dict[str, ModelDetail]
+
+class ThresholdConfig(BaseModel):
+    isolation_forest: Optional[float] = None
+    one_class_svm: Optional[float] = None
+    autoencoder: Optional[float] = None

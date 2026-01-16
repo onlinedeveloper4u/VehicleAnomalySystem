@@ -16,10 +16,11 @@ def main():
     print("Preprocessing data...")
     preprocessor = DataPreprocessor()
     X_scaled = preprocessor.fit_transform(raw_data)
-    preprocessor.save("models/scaler.pkl")
     
     print("Starting model training...")
-    trainer = ModelTrainer(model_dir="models")
+    trainer = ModelTrainer(model_dir="models", version="v_temporal")
+    # Save scaler into the versioned directory
+    preprocessor.save(os.path.join(trainer.model_dir, "scaler.pkl"))
     trainer.train_all(X_scaled)
     print("Training complete.")
 

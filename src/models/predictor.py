@@ -48,21 +48,24 @@ class AnomalyDetector:
         # Load Autoencoder
         ae_path = os.path.join(self.model_dir, "autoencoder_model.pth")
         if os.path.exists(ae_path):
-            # We need to know input dim. 
-            # We can infer it from the scaler logic: 15 features.
-            # Ideally this is also config, but hardcoding for now based on known features.
-            input_dim = len(self.preprocessor.sensor_columns)
+            # Autoencoder training happened on processed features
+            input_dim = len(self.preprocessor.feature_columns)
             ae = Autoencoder(input_dim).to(self.device)
             ae.load_state_dict(torch.load(ae_path, map_location=self.device))
             ae.eval()
             self.models["autoencoder"] = ae
 
-    def predict(self, data):
+    def predict(self, data, threshold_overrides=None):
         """
         Predicts anomalies for the given DataFrame.
         Returns a global anomaly flag and details per model.
         """
-        # Preprocess
+        # 1. Start with loaded defaults
+        current_thresholds = self.thresholds.copy()
+        if threshold_overrides:
+            current_thresholds.update(threshold_overrides)
+            
+        # 2. Preprocess
         X_scaled = self.preprocessor.transform(data)
         
         results = {}
@@ -71,8 +74,7 @@ class AnomalyDetector:
         if "isolation_forest" in self.models:
             model = self.models["isolation_forest"]
             scores = -model.decision_function(X_scaled)
-            # Handle batch or single sample
-            is_anomaly = scores > self.thresholds.get("isolation_forest", 0)
+            is_anomaly = scores > current_thresholds.get("isolation_forest", 0)
             results["isolation_forest"] = {
                 "score": [round(float(s), 4) for s in scores],
                 "is_anomaly": is_anomaly.tolist()
@@ -82,18 +84,7 @@ class AnomalyDetector:
         if "one_class_svm" in self.models:
             model = self.models["one_class_svm"]
             scores = model.decision_function(X_scaled) 
-            # Note: For sklearn OCSVM, positive structure is inlier.
-            # But earlier in trainer, we saw that trainer used:
-            # threshold_svm = mean(svm_scores) - 3*std
-            # And saved the model.
-            # If the trained model is used, we should use its decision_function.
-            # The trainer returned 0.0 effectively as threshold for the FINAL model if we trust the model's own support vectors.
-            # But IF we used the trainer's logic of 0.0, then:
-            # score < 0 => anomaly.
-            # BUT wait, My trainer.py returned 0.0.
-            # Standard OneClassSVM: decision_function < 0 is anomaly.
-            # So is_anomaly = scores < threshold (0).
-            is_anomaly = scores < self.thresholds.get("one_class_svm", 0)
+            is_anomaly = scores < current_thresholds.get("one_class_svm", 0)
             results["one_class_svm"] = {
                 "score": [round(float(s), 4) for s in scores],
                 "is_anomaly": is_anomaly.tolist()
@@ -107,7 +98,7 @@ class AnomalyDetector:
                 X_recon = model(X_tensor).cpu().numpy()
             
             recon_error = np.mean((X_scaled - X_recon) ** 2, axis=1)
-            threshold = self.thresholds.get("autoencoder", 0)
+            threshold = current_thresholds.get("autoencoder", 0)
             is_anomaly = recon_error > threshold
             results["autoencoder"] = {
                 "score": [round(float(s), 4) for s in recon_error],

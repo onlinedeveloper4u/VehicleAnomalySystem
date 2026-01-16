@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, Security
 from fastapi.security import APIKeyHeader
-from src.api.schemas import SensorData, PredictionResponse
+from src.api.schemas import SensorData, PredictionResponse, ThresholdConfig
 from src.models.predictor import AnomalyDetector
 import pandas as pd
 import os
@@ -100,9 +100,25 @@ async def health_check():
         return {
             "status": "active", 
             "version": getattr(detector, "version", "unknown"),
+            "thresholds": detector.thresholds,
             "models_loaded": list(detector.models.keys())
         }
     return {"status": "unhealthy", "message": "Models not loaded"}
+
+@app.patch("/thresholds")
+async def update_thresholds(config: ThresholdConfig, api_key: str = Depends(get_api_key)):
+    """
+    Update the global anomaly detection thresholds for the active models.
+    """
+    if not detector:
+        raise HTTPException(status_code=503, detail="Models not loaded")
+    
+    # Filter out None values
+    overrides = {k: v for k, v in config.dict().items() if v is not None}
+    detector.thresholds.update(overrides)
+    
+    logger.info(f"Thresholds updated: {overrides}")
+    return {"status": "success", "new_thresholds": detector.thresholds}
 
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(data: List[SensorData], api_key: str = Depends(get_api_key)):

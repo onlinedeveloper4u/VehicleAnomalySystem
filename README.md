@@ -17,7 +17,7 @@ src/
     utils/          # Visualization & helpers
 models/             # Stored .pkl and .pth model files
 reports/            # Diagnostic performance plots (PNGs)
-data/               # Training data and sample JSONs
+data/               # Training datasets
 train.py            # Main training script
 evaluate.py         # Performance evaluation & plot generation
 benchmark.py        # Latency benchmarking script [NEW]

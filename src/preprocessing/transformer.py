@@ -19,58 +19,124 @@ class DataPreprocessor:
         
         self.scaler = MinMaxScaler()
 
-    def fit(self, data: pd.DataFrame):
-        """Fits the scaler on the provided data."""
-        # Ensure we only work with relevant columns
-        data_filtered = data[self.sensor_columns]
+    def fit(self, data: pd.DataFrame, window=10):
+        """Fits the scaler on the provided data after cleaning and feature engineering."""
+        # 1. Clean (Rule 1 & 2)
+        cleaned = self.clean_sensor_data(data)
         
-        # Handle missing values (fit logic might differ, but for MinMax it's just min/max)
-        # However, to be safe, we should probably fill na before fitting
-        data_filled = data_filtered.ffill().bfill()
+        # 2. Extract Temporal Features (Req 3.3)
+        featured = self.create_rolling_features(cleaned, window=window)
         
-        self.scaler.fit(data_filled)
+        # 3. Handle only numeric columns for scaling
+        # Ensure we always use the same feature order and only numeric columns
+        if not hasattr(self, 'feature_columns'):
+            # Only include original sensor columns and added rolling features
+            # Exclude non-numeric like Timestamp, Model, Vehicle_ID, Failure_Probability
+            numeric_cols = []
+            for col in featured.columns:
+                is_raw_sensor = col in self.sensor_columns
+                is_rolled = any(col.endswith(suffix) for suffix in ["_mean", "_std", "_min", "_max", "_delta", "_slope"])
+                if is_raw_sensor or is_rolled:
+                    numeric_cols.append(col)
+            self.feature_columns = numeric_cols
+            
+        self.scaler.fit(featured[self.feature_columns])
         return self
 
-    def transform(self, data: pd.DataFrame) -> np.ndarray:
-        """Transforms the data using the fitted scaler."""
-        # Ensure we only work with relevant columns
-        # Check if columns exist
-        missing_cols = [col for col in self.sensor_columns if col not in data.columns]
-        if missing_cols:
-            raise ValueError(f"Missing columns in input data: {missing_cols}")
-            
-        data_filtered = data[self.sensor_columns]
-        data_filled = data_filtered.ffill().bfill()
+    def transform(self, data: pd.DataFrame, window=10) -> np.ndarray:
+        """Transforms data after cleaning and feature engineering."""
+        # 1. Clean
+        cleaned = self.clean_sensor_data(data)
         
-        return self.scaler.transform(data_filled)
+        # 2. Extract Temporal Features
+        featured = self.create_rolling_features(cleaned, window=window)
+        
+        # 3. Verify columns match
+        missing_cols = [col for col in self.feature_columns if col not in featured.columns]
+        if missing_cols:
+            raise ValueError(f"Missing processed columns in input data: {missing_cols}")
+            
+        return self.scaler.transform(featured[self.feature_columns])
 
-    def fit_transform(self, data: pd.DataFrame) -> np.ndarray:
-        """Fits and transforms the data."""
-        self.fit(data)
-        return self.transform(data)
+    def fit_transform(self, data: pd.DataFrame, window=10) -> np.ndarray:
+        """Fits and transforms the data with temporal context."""
+        self.fit(data, window=window)
+        return self.transform(data, window=window)
 
-    def create_rolling_features(self, data: pd.DataFrame, window=5):
+    def clean_sensor_data(self, data: pd.DataFrame) -> pd.DataFrame:
         """
-        Creates rolling statistics for sensor columns to support time-window analysis.
-        Req 3.3: "support time-window-based analysis"
+        Cleans sensor data by enforcing sanity bounds and handling noise.
+        Part 2 Compliance: "Rule 1 & 2: Clean before training / Filter obvious sensor errors"
+        """
+        cleaned = data.copy()
+        bounds = {
+            "Battery_Voltage": (10, 15),
+            "Battery_Current": (-500, 500),
+            "Battery_Temperature": (-40, 100),
+            "Motor_Temperature": (-40, 150),
+            "Motor_Vibration": (0, 10),
+            "Motor_RPM": (0, 8000),
+            "Driving_Speed": (0, 200),
+            "Tire_Pressure": (20, 50),
+            "Brake_Pressure": (0, 2000),
+        }
+        
+        for col, (min_val, max_val) in bounds.items():
+            if col in cleaned.columns:
+                # Clip values to bounds instead of dropping to maintain time-series continuity
+                cleaned[col] = cleaned[col].clip(lower=min_val, upper=max_val)
+        
+        # Handle sharp spikes (Rule 1: Sensor Noise)
+        # Using a simple median filter or just relying on subsequent rolling features
+        return cleaned.ffill().bfill()
+
+    def create_rolling_features(self, data: pd.DataFrame, window=10):
+        """
+        Creates advanced statistical and trend features for time-window analysis.
+        Part 1 Compliance: "Convert time window -> ML features (mean, std, min, max, slope, delta)"
         """
         data_rolled = data.copy()
+        
+        # We perform rolling on a per-vehicle/per-session basis if session ID exists,
+        # but for now, we assume a continuous stream as provided in the dataset.
         for col in self.sensor_columns:
             if col in data.columns:
-                data_rolled[f"{col}_mean_{window}"] = data[col].rolling(window=window).mean()
-                data_rolled[f"{col}_std_{window}"] = data[col].rolling(window=window).std()
+                rolling = data[col].rolling(window=window)
+                data_rolled[f"{col}_mean"] = rolling.mean()
+                data_rolled[f"{col}_std"] = rolling.std()
+                data_rolled[f"{col}_min"] = rolling.min()
+                data_rolled[f"{col}_max"] = rolling.max()
+                
+                # Delta (Trend)
+                data_rolled[f"{col}_delta"] = data[col].diff(periods=window-1)
+                
+                # Slope approximation (Simple linear slope: current - start) / window
+                data_rolled[f"{col}_slope"] = (data[col] - data[col].shift(window-1)) / window
         
-        # Fill NaNs created by rolling window
-        return data_rolled.ffill().bfill()
+        # Keep only the new features + original raw columns? 
+        # Requirement 5.2 mentions specific metrics, and Part 1 says "becomes one ML row".
+        # We will keep raw + rolled for maximum model sensitivity.
+        return data_rolled.ffill().bfill().fillna(0)
 
     def save(self, filepath: str):
-        """Saves the scaler to a file."""
+        """Saves the scaler and feature metadata to a file."""
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        joblib.dump(self.scaler, filepath)
+        data_to_save = {
+            "scaler": self.scaler,
+            "feature_columns": getattr(self, "feature_columns", self.sensor_columns)
+        }
+        joblib.dump(data_to_save, filepath)
 
     def load(self, filepath: str):
-        """Loads the scaler from a file."""
+        """Loads the scaler and feature metadata from a file."""
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"Scaler file not found: {filepath}")
-        self.scaler = joblib.load(filepath)
+        loaded_data = joblib.load(filepath)
+        if isinstance(loaded_data, dict) and "scaler" in loaded_data:
+            self.scaler = loaded_data["scaler"]
+            self.feature_columns = loaded_data["feature_columns"]
+        else:
+            # Fallback for old scaler files
+            self.scaler = loaded_data
+            self.feature_columns = self.sensor_columns
         return self
