@@ -1,9 +1,10 @@
 import pandas as pd
 import numpy as np
 import os
+import json
 from src.models.predictor import AnomalyDetector
 from src.utils.visualizer import plot_anomaly_distribution, plot_agreement_matrix
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, precision_score, recall_score, f1_score
 
 def run_evaluation():
     print("Starting Model Evaluation...")
@@ -62,17 +63,53 @@ def run_evaluation():
             correlation = np.corrcoef(is_anomaly, fail_prob)[0, 1]
             print(f"{model_name.title()} Correlation with Failure Probability: {correlation:.4f}")
 
-        # Global system correlation
-        global_anomaly = np.array(results["is_anomaly"], dtype=int)
-        global_corr = np.corrcoef(global_anomaly, fail_prob)[0, 1]
-        print(f"Global Multi-Model System Correlation: {global_corr:.4f}")
-        
         # Binary Classification Mockup (treating high prob as 1)
         # Assuming Failure_Probability > 0.5 is an anomaly
         binary_labels = (fail_prob > 0.5).astype(int)
+        
         if len(np.unique(binary_labels)) > 1:
-            auc = roc_auc_score(binary_labels, global_anomaly)
-            print(f"System ROC-AUC (vs Prob > 0.5): {auc:.4f}")
+            print(f"\nEvaluating performance (using Failure_Probability > 0.5 as proxy labels):")
+            
+            # Global system evaluation
+            global_anomaly = np.array(results["is_anomaly"], dtype=int)
+            print(f"\nGLOBAL MULTI-MODEL SYSTEM:")
+            print(f"ROC-AUC:   {roc_auc_score(binary_labels, global_anomaly):.4f}")
+            print(f"Precision: {precision_score(binary_labels, global_anomaly, zero_division=0):.4f}")
+            print(f"Recall:    {recall_score(binary_labels, global_anomaly, zero_division=0):.4f}")
+            print(f"F1-score:  {f1_score(binary_labels, global_anomaly, zero_division=0):.4f}")
+
+            # Individual model evaluation
+            model_metrics = {}
+            for model_name in results["details"]:
+                is_anomaly = np.array(results["details"][model_name]["is_anomaly"], dtype=int)
+                m = {
+                    "roc_auc": float(roc_auc_score(binary_labels, is_anomaly)),
+                    "precision": float(precision_score(binary_labels, is_anomaly, zero_division=0)),
+                    "recall": float(recall_score(binary_labels, is_anomaly, zero_division=0)),
+                    "f1_score": float(f1_score(binary_labels, is_anomaly, zero_division=0))
+                }
+                model_metrics[model_name] = m
+                print(f"\nMODEL: {model_name.upper()}")
+                print(f"ROC-AUC:   {m['roc_auc']:.4f}")
+                print(f"Precision: {m['precision']:.4f}")
+                print(f"Recall:    {m['recall']:.4f}")
+                print(f"F1-score:  {m['f1_score']:.4f}")
+
+            # Save metrics to JSON
+            metrics_path = os.path.join(report_dir, "metrics.json")
+            with open(metrics_path, "w") as f:
+                json.dump({
+                    "timestamp": str(pd.Timestamp.now()),
+                    "sample_size": len(sample_df),
+                    "global_system": {
+                        "roc_auc": float(roc_auc_score(binary_labels, global_anomaly)),
+                        "precision": float(precision_score(binary_labels, global_anomaly, zero_division=0)),
+                        "recall": float(recall_score(binary_labels, global_anomaly, zero_division=0)),
+                        "f1_score": float(f1_score(binary_labels, global_anomaly, zero_division=0))
+                    },
+                    "individual_models": model_metrics
+                }, f, indent=4)
+            print(f"\nMetrics saved to {metrics_path}")
     
     print(f"\nEvaluation complete. Plots generated in '{report_dir}/'")
 

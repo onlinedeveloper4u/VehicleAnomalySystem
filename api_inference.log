@@ -1,0 +1,33 @@
+2026-01-16 15:41:09,015 - anomaly_api - INFO - Loading models (version: v1)...
+2026-01-16 15:41:12,034 - anomaly_api - INFO - [1768560072034] Prediction request received: 2 records
+2026-01-16 15:41:12,040 - anomaly_api - INFO - [1768560072034] Prediction complete. Latency: 5.95ms. Anomalies detected: 2/2
+2026-01-16 15:41:12,042 - anomaly_api - INFO - [1768560072042] Prediction request received: 2 records
+2026-01-16 15:41:12,047 - anomaly_api - INFO - [1768560072042] Prediction complete. Latency: 4.81ms. Anomalies detected: 2/2
+2026-01-16 15:41:12,048 - anomaly_api - INFO - [1768560072048] Prediction request received: 2 records
+2026-01-16 15:41:12,053 - anomaly_api - INFO - [1768560072048] Prediction complete. Latency: 4.93ms. Anomalies detected: 2/2
+2026-01-16 15:41:12,054 - anomaly_api - INFO - [1768560072054] Prediction request received: 2 records
+2026-01-16 15:41:12,059 - anomaly_api - INFO - [1768560072054] Prediction complete. Latency: 4.79ms. Anomalies detected: 2/2
+2026-01-16 15:41:12,060 - anomaly_api - INFO - [1768560072060] Prediction request received: 2 records
+2026-01-16 15:41:12,065 - anomaly_api - INFO - [1768560072060] Prediction complete. Latency: 4.62ms. Anomalies detected: 2/2
+2026-01-16 15:41:12,066 - anomaly_api - INFO - [1768560072066] Prediction request received: 2 records
+2026-01-16 15:41:12,080 - anomaly_api - INFO - [1768560072066] Prediction complete. Latency: 13.77ms. Anomalies detected: 2/2
+2026-01-16 15:41:12,084 - anomaly_api - INFO - [1768560072084] Prediction request received: 2 records
+2026-01-16 15:41:12,102 - anomaly_api - INFO - [1768560072084] Prediction complete. Latency: 17.10ms. Anomalies detected: 2/2
+2026-01-16 15:41:12,104 - anomaly_api - INFO - [1768560072104] Prediction request received: 2 records
+2026-01-16 15:41:12,110 - anomaly_api - INFO - [1768560072104] Prediction complete. Latency: 5.65ms. Anomalies detected: 2/2
+2026-01-16 15:41:12,112 - anomaly_api - INFO - [1768560072112] Prediction request received: 2 records
+2026-01-16 15:41:12,119 - anomaly_api - INFO - [1768560072112] Prediction complete. Latency: 6.57ms. Anomalies detected: 2/2
+2026-01-16 15:41:12,121 - anomaly_api - INFO - [1768560072121] Prediction request received: 2 records
+2026-01-16 15:41:12,126 - anomaly_api - INFO - [1768560072121] Prediction complete. Latency: 5.14ms. Anomalies detected: 2/2
+2026-01-16 15:41:12,268 - anomaly_api - INFO - Shutting down...
+2026-01-16 15:51:47,448 - anomaly_api - INFO - Loading models (version: v1)...
+2026-01-16 15:51:50,697 - anomaly_api - INFO - Switching model version to: v2
+2026-01-16 15:51:50,913 - anomaly_api - INFO - Shutting down...
+2026-01-16 15:56:39,539 - anomaly_api - INFO - Loading models (version: v1)...
+2026-01-16 15:56:42,049 - anomaly_api - INFO - [1768561002048] Prediction request received: 2 records
+2026-01-16 15:56:42,065 - anomaly_api - INFO - [1768561002048] Prediction complete. Latency: 15.06ms. Anomalies detected: 1/2
+2026-01-16 15:56:42,193 - anomaly_api - INFO - Shutting down...
+2026-01-16 15:58:23,177 - anomaly_api - INFO - Loading models (version: v1)...
+2026-01-16 15:58:26,230 - anomaly_api - INFO - [1768561106230] Prediction request received: 2 records
+2026-01-16 15:58:26,237 - anomaly_api - INFO - [1768561106230] Prediction complete. Latency: 6.31ms. Anomalies detected: 1/2
+2026-01-16 15:58:26,354 - anomaly_api - INFO - Shutting down...

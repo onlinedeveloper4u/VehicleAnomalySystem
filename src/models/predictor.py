@@ -7,12 +7,13 @@ from src.preprocessing.transformer import DataPreprocessor
 from src.models.autoencoder import Autoencoder
 
 class AnomalyDetector:
-    def __init__(self, model_dir="models"):
-        self.model_dir = model_dir
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    def __init__(self, model_dir="models", version="v1", device=None):
+        self.device = device if device else torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model_dir = os.path.join(model_dir, version)
         self.models = {}
         self.thresholds = {}
         self.preprocessor = DataPreprocessor()
+        self.version = version
         
         self.load_models()
 

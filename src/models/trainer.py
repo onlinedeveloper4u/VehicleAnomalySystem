@@ -11,8 +11,9 @@ import json
 from src.models.autoencoder import Autoencoder
 
 class ModelTrainer:
-    def __init__(self, model_dir="../models"):
-        self.model_dir = model_dir
+    def __init__(self, model_dir="../models", version="v1"):
+        self.version = version
+        self.model_dir = os.path.join(model_dir, version)
         os.makedirs(self.model_dir, exist_ok=True)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

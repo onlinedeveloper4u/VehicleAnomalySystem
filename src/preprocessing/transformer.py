@@ -49,6 +49,20 @@ class DataPreprocessor:
         self.fit(data)
         return self.transform(data)
 
+    def create_rolling_features(self, data: pd.DataFrame, window=5):
+        """
+        Creates rolling statistics for sensor columns to support time-window analysis.
+        Req 3.3: "support time-window-based analysis"
+        """
+        data_rolled = data.copy()
+        for col in self.sensor_columns:
+            if col in data.columns:
+                data_rolled[f"{col}_mean_{window}"] = data[col].rolling(window=window).mean()
+                data_rolled[f"{col}_std_{window}"] = data[col].rolling(window=window).std()
+        
+        # Fill NaNs created by rolling window
+        return data_rolled.ffill().bfill()
+
     def save(self, filepath: str):
         """Saves the scaler to a file."""
         os.makedirs(os.path.dirname(filepath), exist_ok=True)

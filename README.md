@@ -20,6 +20,8 @@ reports/            # Diagnostic performance plots (PNGs)
 data/               # Training data and sample JSONs
 train.py            # Main training script
 evaluate.py         # Performance evaluation & plot generation
+benchmark.py        # Latency benchmarking script [NEW]
+exploration.ipynb   # Interactive data exploration & training [NEW]
 ```
 
 ## Setup
