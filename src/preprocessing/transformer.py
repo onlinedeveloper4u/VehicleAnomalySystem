@@ -99,17 +99,19 @@ class DataPreprocessor:
         # but for now, we assume a continuous stream as provided in the dataset.
         for col in self.sensor_columns:
             if col in data.columns:
-                rolling = data[col].rolling(window=window)
+                # Use min_periods=1 so that we get a value even for the first row
+                rolling = data[col].rolling(window=window, min_periods=1)
                 data_rolled[f"{col}_mean"] = rolling.mean()
-                data_rolled[f"{col}_std"] = rolling.std()
+                data_rolled[f"{col}_std"] = rolling.std().fillna(0)
                 data_rolled[f"{col}_min"] = rolling.min()
                 data_rolled[f"{col}_max"] = rolling.max()
                 
-                # Delta (Trend)
-                data_rolled[f"{col}_delta"] = data[col].diff(periods=window-1)
+                # Delta (Trend) - Difference over the available window
+                # If window isn't full, it compares against the very first record
+                data_rolled[f"{col}_delta"] = data[col] - data[col].shift(window-1).ffill().fillna(data[col].iloc[0])
                 
-                # Slope approximation (Simple linear slope: current - start) / window
-                data_rolled[f"{col}_slope"] = (data[col] - data[col].shift(window-1)) / window
+                # Slope approximation - average change per step over the window
+                data_rolled[f"{col}_slope"] = data_rolled[f"{col}_delta"] / window
         
         # Keep only the new features + original raw columns? 
         # Requirement 5.2 mentions specific metrics, and Part 1 says "becomes one ML row".

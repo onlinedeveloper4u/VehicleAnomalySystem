@@ -1,7 +1,9 @@
 from pydantic import BaseModel, Field
-from typing import List, Dict, Union, Optional
+from typing import List, Optional
+
 
 class SensorData(BaseModel):
+    """Input schema for sensor readings from a vehicle."""
     Battery_Voltage: float
     Battery_Current: float
     Battery_Temperature: float
@@ -19,16 +21,23 @@ class SensorData(BaseModel):
     Driving_Speed: float
     Vehicle_ID: Optional[str] = "default"
 
-class ModelDetail(BaseModel):
-    score: List[float]
-    is_anomaly: List[bool]
 
 class PredictionResponse(BaseModel):
-    is_anomaly: List[bool]
-    votes: List[int]
-    details: Dict[str, ModelDetail]
+    """Response schema for anomaly predictions."""
+    is_anomaly: List[bool] = Field(description="Anomaly flag for each input record")
+    scores: List[float] = Field(description="Anomaly score for each record (higher = more anomalous)")
+    threshold: float = Field(description="Current threshold used for classification")
+    version: str = Field(description="Model version used for prediction")
+
 
 class ThresholdConfig(BaseModel):
-    isolation_forest: Optional[float] = None
-    one_class_svm: Optional[float] = None
-    autoencoder: Optional[float] = None
+    """Schema for updating anomaly detection threshold."""
+    isolation_forest: Optional[float] = Field(None, description="New threshold value")
+
+
+class HealthResponse(BaseModel):
+    """Response schema for health check endpoint."""
+    status: str
+    version: str
+    threshold: float
+    model_loaded: bool

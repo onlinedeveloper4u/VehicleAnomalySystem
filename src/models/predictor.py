@@ -1,26 +1,39 @@
 import pandas as pd
 import joblib
-import torch
 import numpy as np
 import os
 import json
 from src.preprocessing.transformer import DataPreprocessor
-from src.models.autoencoder import Autoencoder
+
 
 class AnomalyDetector:
-    def __init__(self, model_dir="models", version="v1", device=None, max_history=20):
-        self.device = device if device else torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    """
+    Anomaly detection system using Isolation Forest.
+    
+    Supports stateful history buffer for time-window analysis on single records.
+    """
+    
+    def __init__(self, model_dir: str = "models", version: str = "v1", max_history: int = 20):
+        """
+        Initialize the anomaly detector.
+        
+        Args:
+            model_dir: Base directory for model storage
+            version: Model version to load
+            max_history: Maximum records to keep in history per vehicle
+        """
         self.model_dir = os.path.join(model_dir, version)
-        self.models = {}
-        self.thresholds = {}
+        self.model = None
+        self.threshold = 0.0
         self.preprocessor = DataPreprocessor()
         self.version = version
-        self.history = {} # Key: Vehicle_ID, Value: pd.DataFrame
+        self.history: dict[str, pd.DataFrame] = {}  # Key: Vehicle_ID, Value: pd.DataFrame
         self.max_history = max_history
         
-        self.load_models()
+        self.load_model()
 
-    def load_models(self):
+    def load_model(self) -> None:
+        """Load the Isolation Forest model, scaler, and threshold."""
         # Load Scaler
         scaler_path = os.path.join(self.model_dir, "scaler.pkl")
         if os.path.exists(scaler_path):
@@ -28,50 +41,48 @@ class AnomalyDetector:
         else:
             raise FileNotFoundError(f"Scaler not found at {scaler_path}")
 
-        # Load Thresholds
+        # Load Threshold
         thresholds_path = os.path.join(self.model_dir, "thresholds.json")
         if os.path.exists(thresholds_path):
             with open(thresholds_path, "r") as f:
-                self.thresholds = json.load(f)
+                thresholds = json.load(f)
+                self.threshold = thresholds.get("isolation_forest", 0.0)
         else:
-             # Fallback or error? For now, let's warn and use defaults if possible, but better to error.
-             print(f"Warning: Thresholds file not found at {thresholds_path}. Using default/zero thresholds.")
-             self.thresholds = {"isolation_forest": 0.0, "one_class_svm": 0.0, "autoencoder": 0.0}
+            print(f"Warning: Thresholds file not found at {thresholds_path}. Using default threshold.")
+            self.threshold = 0.0
 
         # Load Isolation Forest
-        iso_path = os.path.join(self.model_dir, "isolation_forest_model.pkl")
-        if os.path.exists(iso_path):
-            self.models["isolation_forest"] = joblib.load(iso_path)
+        model_path = os.path.join(self.model_dir, "isolation_forest_model.pkl")
+        if os.path.exists(model_path):
+            self.model = joblib.load(model_path)
+        else:
+            raise FileNotFoundError(f"Isolation Forest model not found at {model_path}")
 
-        # Load One-Class SVM
-        svm_path = os.path.join(self.model_dir, "one_class_svm_model.pkl")
-        if os.path.exists(svm_path):
-            self.models["one_class_svm"] = joblib.load(svm_path)
-
-        # Load Autoencoder
-        ae_path = os.path.join(self.model_dir, "autoencoder_model.pth")
-        if os.path.exists(ae_path):
-            # Autoencoder training happened on processed features
-            input_dim = len(self.preprocessor.feature_columns)
-            ae = Autoencoder(input_dim).to(self.device)
-            ae.load_state_dict(torch.load(ae_path, map_location=self.device))
-            ae.eval()
-            self.models["autoencoder"] = ae
-
-    def predict(self, data, threshold_overrides=None):
+    def predict(self, data: pd.DataFrame, threshold_override: float | None = None) -> dict:
         """
-        Predicts anomalies for the given DataFrame.
+        Predict anomalies for the given DataFrame.
+        
         Uses a stateful history buffer to support sequence analysis for single records.
-        Returns a global anomaly flag and details per model.
+        
+        Args:
+            data: Input DataFrame with sensor readings
+            threshold_override: Optional custom threshold to use
+            
+        Returns:
+            Dictionary with anomaly predictions and scores
         """
-        # 1. Management of history for sequence context
-        # We handle multiple vehicles by looking for 'Vehicle_ID'
+        if self.model is None:
+            raise RuntimeError("Model not loaded. Call load_model() first.")
+        
+        # Use override threshold if provided
+        current_threshold = threshold_override if threshold_override is not None else self.threshold
+        
+        # 1. Manage history for sequence context
         vehicle_ids = data['Vehicle_ID'].unique() if 'Vehicle_ID' in data.columns else ['default']
         
-        # We need to process each vehicle's batch separately to maintain trend integrity
-        # But for simplicity in returning a single batch of predictions, we'll build a context-aware dataset
-        
-        all_combined_X_scaled = []
+        # Track samples with their metadata for final aggregation
+        # Format: (original_index, scaled_features, vehicle_id, history_length)
+        all_samples_meta = []
         
         for vid in vehicle_ids:
             # Filter data for this vehicle
@@ -91,72 +102,50 @@ class AnomalyDetector:
             n_new = len(v_data)
             X_v_new_scaled = X_v_combined_scaled[-n_new:]
             
-            # Label them with their original indices to reconstruct the batch order later
+            # Label them with their original metadata
             indices = v_data.index
             for i, idx in enumerate(indices):
-                all_combined_X_scaled.append((idx, X_v_new_scaled[i]))
+                current_h_len = len(v_history) + i
+                all_samples_meta.append((idx, X_v_new_scaled[i], vid, current_h_len))
         
         # Sort back to original request order
-        all_combined_X_scaled.sort(key=lambda x: x[0])
-        X_scaled = np.array([x[1] for x in all_combined_X_scaled])
+        all_samples_meta.sort(key=lambda x: x[0])
+        X_scaled = np.array([x[1] for x in all_samples_meta])
 
-        # 2. Start with loaded defaults or overrides
-        current_thresholds = self.thresholds.copy()
-        if threshold_overrides:
-            current_thresholds.update(threshold_overrides)
+        # 2. Isolation Forest Prediction
+        # Higher score = more anomalous
+        scores = -self.model.score_samples(X_scaled)
         
-        results = {}
+        # 3. Apply threshold with warm-up grace period
+        n_samples = len(X_scaled)
+        is_anomaly = []
         
-        # Isolation Forest
-        if "isolation_forest" in self.models:
-            model = self.models["isolation_forest"]
-            scores = -model.decision_function(X_scaled)
-            is_anomaly = scores > current_thresholds.get("isolation_forest", 0)
-            results["isolation_forest"] = {
-                "score": [round(float(s), 4) for s in scores],
-                "is_anomaly": is_anomaly.tolist()
-            }
+        for i in range(n_samples):
+            # Removed grace period as per user request to enable immediate prediction
+            # History < 10 will rely on min_periods=1 in preprocessor (delta=0)
+            is_anomaly.append(bool(scores[i] > current_threshold))
 
-        # One-Class SVM
-        if "one_class_svm" in self.models:
-            model = self.models["one_class_svm"]
-            scores = model.decision_function(X_scaled) 
-            is_anomaly = scores < current_thresholds.get("one_class_svm", 0)
-            results["one_class_svm"] = {
-                "score": [round(float(s), 4) for s in scores],
-                "is_anomaly": is_anomaly.tolist()
-            }
-
-        # Autoencoder
-        if "autoencoder" in self.models:
-            model = self.models["autoencoder"]
-            X_tensor = torch.tensor(X_scaled, dtype=torch.float32).to(self.device)
-            with torch.no_grad():
-                X_recon = model(X_tensor).cpu().numpy()
-            
-            recon_error = np.mean((X_scaled - X_recon) ** 2, axis=1)
-            threshold = current_thresholds.get("autoencoder", 0)
-            is_anomaly = recon_error > threshold
-            results["autoencoder"] = {
-                "score": [round(float(s), 4) for s in recon_error],
-                "is_anomaly": is_anomaly.tolist()
-            }
-
-        # Aggregate result: Majority Vote (at least 2 models must agree)
-        # This makes the system more robust to false positives from a single model.
-        # Requirement: "The system shall classify data points as normal or anomalous"
-        
-        n_samples = len(data)
-        anomaly_votes = np.zeros(n_samples, dtype=int)
-        
-        for key in results:
-            anomaly_votes += np.array(results[key]["is_anomaly"], dtype=int)
-            
-        # If 2 or more models flag it, we consider it a global anomaly
-        final_anomaly = anomaly_votes >= 2
-            
+        # 4. Build response
         return {
-            "is_anomaly": final_anomaly.tolist(),
-            "votes": anomaly_votes.tolist(),
-            "details": results
+            "is_anomaly": is_anomaly,
+            "scores": [round(float(s), 6) for s in scores],
+            "threshold": current_threshold,
+            "version": self.version
         }
+    
+    def update_threshold(self, new_threshold: float) -> None:
+        """Update the anomaly detection threshold."""
+        self.threshold = new_threshold
+    
+    def clear_history(self, vehicle_id: str | None = None) -> None:
+        """
+        Clear history buffer for a specific vehicle or all vehicles.
+        
+        Args:
+            vehicle_id: If provided, clear only that vehicle's history.
+                       If None, clear all history.
+        """
+        if vehicle_id:
+            self.history.pop(vehicle_id, None)
+        else:
+            self.history.clear()

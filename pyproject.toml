@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    # Ignore deprecation warning from slowapi (third-party library issue)
+    "ignore:.*asyncio.iscoroutinefunction.*:DeprecationWarning",
+]
