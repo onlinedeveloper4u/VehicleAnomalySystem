@@ -30,13 +30,13 @@ detector = None
 async def lifespan(app: FastAPI):
     global detector
     version = os.environ.get("MODEL_VERSION", "v1")
-    logger.info(f"Loading models (version: {version})...")
+    logger.info(f"System startup. Attempting to load models (version: {version})...")
     try:
         detector = AnomalyDetector(model_dir="models", version=version)
+        logger.info(f"Successfully loaded model version: {version}")
     except Exception as e:
-        logger.error(f"Error loading models: {e}")
-        # We might want to fail startup if models are critical, 
-        # but for now let's allow it to start and fail on predict
+        logger.error(f"CRITICAL ERROR: Failed to load models for version '{version}'. Error: {e}")
+        logger.warning("The API will start but /predict will return 503 until models are loaded.")
     yield
     logger.info("Shutting down...")
 
@@ -105,6 +105,18 @@ async def health_check():
         }
     return {"status": "unhealthy", "message": "Models not loaded"}
 
+@app.get("/performance")
+async def get_performance():
+    """
+    Returns the latest performance metrics (Precision, Recall, F1) 
+    from the most recent evaluate.py run.
+    """
+    metrics_path = "reports/metrics.json"
+    if os.path.exists(metrics_path):
+        with open(metrics_path, "r") as f:
+            return json.load(f)
+    return {"error": "No performance metrics found. Please run evaluate.py first."}
+
 @app.patch("/thresholds")
 async def update_thresholds(config: ThresholdConfig, api_key: str = Depends(get_api_key)):
     """
@@ -136,17 +148,19 @@ async def predict(data: List[SensorData], api_key: str = Depends(get_api_key)):
         result = detector.predict(df)
         latency = (time.time() - start_time) * 1000
         
-        # Log summary of results
         n_anomalies = sum(result["is_anomaly"])
-        logger.info(
-            f"[{request_id}] Prediction complete. Latency: {latency:.2f}ms. "
-            f"Anomalies detected: {n_anomalies}/{len(data)}"
-        )
         
-        # Log full results to file (optional, but requested by spec "log all results")
-        # For large batches, this might be huge, so we log a summary.
-        # But Req 4.3 says "log all inference requests and results"
-        logger.debug(f"[{request_id}] Full results: {json.dumps(result)}")
+        # Structured JSON Log
+        log_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "request_id": request_id,
+            "n_records": len(data),
+            "n_anomalies": n_anomalies,
+            "latency_ms": round(latency, 2),
+            "version": detector.version,
+            "model_votes": result["votes"]
+        }
+        logger.info(f"INFERENCE_RESULT: {json.dumps(log_entry)}")
         
         return result
     except Exception as e:

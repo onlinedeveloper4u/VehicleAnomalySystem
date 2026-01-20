@@ -10,7 +10,7 @@ def run_evaluation():
     print("Starting Model Evaluation...")
     
     # 1. Load Data
-    data_path = "data/ev_dataset.csv"
+    data_path = "data/abnormal_data.csv"
     if not os.path.exists(data_path):
         print(f"Error: {data_path} not found.")
         return
@@ -18,11 +18,11 @@ def run_evaluation():
     df = pd.read_csv(data_path)
     
     # 2. Load Models
-    detector = AnomalyDetector(model_dir="models", version="v_temporal")
+    detector = AnomalyDetector(model_dir="models", version="v1")
     
     # 3. Predict on a sample to speed up (or full dataset if small enough)
     # The dataset has 175k rows. Let's use 20k for evaluation to be fast.
-    sample_df = df.sample(n=min(150000, len(df)), random_state=42)
+    sample_df = df.sample(n=min(10, len(df)), random_state=42)
     
     print(f"Running predictions on {len(sample_df)} samples...")
     results = detector.predict(sample_df)

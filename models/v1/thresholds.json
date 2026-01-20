@@ -1,5 +1,5 @@
 {
-    "isolation_forest": 0.10914147552061537,
-    "one_class_svm": -0.9725960609145723,
-    "autoencoder": 0.08696347170993023
+    "isolation_forest": 0.014055027489552313,
+    "one_class_svm": 1.0615531670133973,
+    "autoencoder": 0.05805344240897291
 }

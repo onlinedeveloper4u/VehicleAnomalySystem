@@ -20,43 +20,41 @@ class DataPreprocessor:
         self.scaler = MinMaxScaler()
 
     def fit(self, data: pd.DataFrame, window=10):
-        """Fits the scaler on the provided data after cleaning and feature engineering."""
-        # 1. Clean (Rule 1 & 2)
-        cleaned = self.clean_sensor_data(data)
-        
-        # 2. Extract Temporal Features (Req 3.3)
-        featured = self.create_rolling_features(cleaned, window=window)
-        
-        # 3. Handle only numeric columns for scaling
-        # Ensure we always use the same feature order and only numeric columns
-        if not hasattr(self, 'feature_columns'):
-            # Only include original sensor columns and added rolling features
-            # Exclude non-numeric like Timestamp, Model, Vehicle_ID, Failure_Probability
-            numeric_cols = []
-            for col in featured.columns:
-                is_raw_sensor = col in self.sensor_columns
-                is_rolled = any(col.endswith(suffix) for suffix in ["_mean", "_std", "_min", "_max", "_delta", "_slope"])
-                if is_raw_sensor or is_rolled:
-                    numeric_cols.append(col)
-            self.feature_columns = numeric_cols
-            
-        self.scaler.fit(featured[self.feature_columns])
-        return self
-
-    def transform(self, data: pd.DataFrame, window=10) -> np.ndarray:
-        """Transforms data after cleaning and feature engineering."""
+        """Fits the scaler on CLEANED raw sensor data."""
         # 1. Clean
         cleaned = self.clean_sensor_data(data)
         
-        # 2. Extract Temporal Features
-        featured = self.create_rolling_features(cleaned, window=window)
+        # 2. Fit scaler only on raw sensors
+        self.scaler.fit(cleaned[self.sensor_columns])
         
-        # 3. Verify columns match
-        missing_cols = [col for col in self.feature_columns if col not in featured.columns]
-        if missing_cols:
-            raise ValueError(f"Missing processed columns in input data: {missing_cols}")
+        # 3. Determine final feature columns after a dummy transform
+        # This is needed to know the names of the 90+ features (raw + derived)
+        dummy_transformed = self.transform(data.head(window + 5), window=window)
+        # transform returns a numpy array, but we want the names. 
+        # Actually, let's make transform return the DF for a moment or handle names separately.
+        return self
+
+    def transform(self, data: pd.DataFrame, window=10, return_df=False) -> np.ndarray:
+        """Transforms data: Clean -> Scale Raw -> Window -> Extract Features."""
+        # 1. Clean
+        cleaned = self.clean_sensor_data(data)
+        
+        # 2. Scale Raw Sensors
+        # We need to maintain indices for windowing
+        scaled_raw_values = self.scaler.transform(cleaned[self.sensor_columns])
+        scaled_raw_df = pd.DataFrame(scaled_raw_values, columns=self.sensor_columns, index=cleaned.index)
+        
+        # 3. Create Rolling Features on SCALED data (Window -> Extract)
+        featured = self.create_rolling_features(scaled_raw_df, window=window)
+        
+        # 4. Handle feature column selection (ordering)
+        if not hasattr(self, 'feature_columns'):
+            self.feature_columns = featured.columns.tolist()
             
-        return self.scaler.transform(featured[self.feature_columns])
+        if return_df:
+            return featured[self.feature_columns]
+            
+        return featured[self.feature_columns].values
 
     def fit_transform(self, data: pd.DataFrame, window=10) -> np.ndarray:
         """Fits and transforms the data with temporal context."""
@@ -70,15 +68,15 @@ class DataPreprocessor:
         """
         cleaned = data.copy()
         bounds = {
-            "Battery_Voltage": (10, 15),
+            "Battery_Voltage": (100, 500),
             "Battery_Current": (-500, 500),
             "Battery_Temperature": (-40, 100),
             "Motor_Temperature": (-40, 150),
             "Motor_Vibration": (0, 10),
-            "Motor_RPM": (0, 8000),
-            "Driving_Speed": (0, 200),
-            "Tire_Pressure": (20, 50),
-            "Brake_Pressure": (0, 2000),
+            "Motor_RPM": (0, 10000),
+            "Driving_Speed": (0, 250),
+            "Tire_Pressure": (10, 60),
+            "Brake_Pressure": (0, 5000),
         }
         
         for col, (min_val, max_val) in bounds.items():

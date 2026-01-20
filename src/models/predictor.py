@@ -1,3 +1,4 @@
+import pandas as pd
 import joblib
 import torch
 import numpy as np
@@ -7,13 +8,15 @@ from src.preprocessing.transformer import DataPreprocessor
 from src.models.autoencoder import Autoencoder
 
 class AnomalyDetector:
-    def __init__(self, model_dir="models", version="v1", device=None):
+    def __init__(self, model_dir="models", version="v1", device=None, max_history=20):
         self.device = device if device else torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model_dir = os.path.join(model_dir, version)
         self.models = {}
         self.thresholds = {}
         self.preprocessor = DataPreprocessor()
         self.version = version
+        self.history = {} # Key: Vehicle_ID, Value: pd.DataFrame
+        self.max_history = max_history
         
         self.load_models()
 
@@ -58,15 +61,49 @@ class AnomalyDetector:
     def predict(self, data, threshold_overrides=None):
         """
         Predicts anomalies for the given DataFrame.
+        Uses a stateful history buffer to support sequence analysis for single records.
         Returns a global anomaly flag and details per model.
         """
-        # 1. Start with loaded defaults
+        # 1. Management of history for sequence context
+        # We handle multiple vehicles by looking for 'Vehicle_ID'
+        vehicle_ids = data['Vehicle_ID'].unique() if 'Vehicle_ID' in data.columns else ['default']
+        
+        # We need to process each vehicle's batch separately to maintain trend integrity
+        # But for simplicity in returning a single batch of predictions, we'll build a context-aware dataset
+        
+        all_combined_X_scaled = []
+        
+        for vid in vehicle_ids:
+            # Filter data for this vehicle
+            v_data = data[data['Vehicle_ID'] == vid] if 'Vehicle_ID' in data.columns else data
+            v_history = self.history.get(vid, pd.DataFrame())
+            
+            # Combine history with new data
+            combined_v = pd.concat([v_history, v_data], ignore_index=True)
+            
+            # Update history for this vehicle
+            self.history[vid] = combined_v.tail(self.max_history).copy()
+            
+            # Transform this vehicle's batch (including history context)
+            X_v_combined_scaled = self.preprocessor.transform(combined_v)
+            
+            # Extract only the NEW records from this vehicle
+            n_new = len(v_data)
+            X_v_new_scaled = X_v_combined_scaled[-n_new:]
+            
+            # Label them with their original indices to reconstruct the batch order later
+            indices = v_data.index
+            for i, idx in enumerate(indices):
+                all_combined_X_scaled.append((idx, X_v_new_scaled[i]))
+        
+        # Sort back to original request order
+        all_combined_X_scaled.sort(key=lambda x: x[0])
+        X_scaled = np.array([x[1] for x in all_combined_X_scaled])
+
+        # 2. Start with loaded defaults or overrides
         current_thresholds = self.thresholds.copy()
         if threshold_overrides:
             current_thresholds.update(threshold_overrides)
-            
-        # 2. Preprocess
-        X_scaled = self.preprocessor.transform(data)
         
         results = {}
         

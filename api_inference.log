@@ -1,9 +1,0 @@
-2026-01-16 16:58:36,434 - anomaly_api - INFO - Loading models (version: v_temporal)...
-2026-01-16 16:58:39,455 - anomaly_api - INFO - [1768564719455] Prediction request received: 1 records
-2026-01-16 16:58:39,478 - anomaly_api - INFO - [1768564719455] Prediction complete. Latency: 23.08ms. Anomalies detected: 1/1
-2026-01-16 16:58:39,485 - anomaly_api - INFO - [1768564719485] Prediction request received: 1 records
-2026-01-16 16:58:39,506 - anomaly_api - INFO - [1768564719485] Prediction complete. Latency: 21.28ms. Anomalies detected: 1/1
-2026-01-16 16:58:39,513 - anomaly_api - INFO - [1768564719513] Prediction request received: 15 records
-2026-01-16 16:58:39,535 - anomaly_api - INFO - [1768564719513] Prediction complete. Latency: 21.37ms. Anomalies detected: 15/15
-2026-01-16 16:58:39,546 - anomaly_api - INFO - Thresholds updated: {'autoencoder': 0.5}
-2026-01-16 16:58:39,684 - anomaly_api - INFO - Shutting down...

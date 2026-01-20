@@ -18,12 +18,13 @@ def test_preprocessor_fit_transform():
     ])
     
     prep = DataPreprocessor()
-    transformed = prep.fit_transform(data)
+    transformed = prep.fit_transform(data, window=3)
     
-    assert transformed.shape == (10, 15)
+    # 15 raw sensors + (15 sensors * 6 derived features) = 105 total columns
+    assert transformed.shape == (10, 105)
     # MinMax scaler should put values between 0 and 1
     assert transformed.min() >= 0.0
-    assert transformed.max() <= 1.00001 # floating point tolerance
+    assert transformed.max() <= 1.00001
 
 def test_preprocessor_missing_cols():
     data = pd.DataFrame({"Battery_Voltage": [1, 2, 3]})

@@ -12,16 +12,22 @@ A machine learning system for detecting anomalies in vehicle sensor data.
 ```text
 src/
     api/            # FastAPI application
-    models/         # ML model logic (Isolation Forest, SVM, Autoencoder)
+    models/         # ML model logic (Autoencoder) & predictor
     preprocessing/  # Scaling & transformation logic
-    utils/          # Visualization & helpers
-models/             # Stored .pkl and .pth model files
-reports/            # Diagnostic performance plots (PNGs)
-data/               # Training datasets
+    utils/          # Helper utilities
+models/             # Stored model version (v1)
+data/               # Training datasets (normal/abnormal)
+notebooks/          # Documentation & exploration notebooks
+tests/              # Unit tests
+reports/            # placeholder for evaluation plots
+requests/           # Sample JSON for API testing
 train.py            # Main training script
-evaluate.py         # Performance evaluation & plot generation
-benchmark.py        # Latency benchmarking script [NEW]
-exploration.ipynb   # Interactive data exploration & training [NEW]
+evaluate.py         # Performance evaluation script
+separate_data.py    # Dataset separation script
+render.yaml         # Render deployment config
+Dockerfile          # Container configuration
+requirements.txt    # Python dependencies
+README.md           # Documentation
 ```
 
 ## Setup

@@ -22,9 +22,9 @@ class ModelTrainer:
         iso_model = IsolationForest(random_state=42)
         iso_model.fit(X)
         
-        # Calculate Threshold
+        # Calculate Threshold: 99th percentile of normal training scores
         scores = -iso_model.decision_function(X)
-        threshold = float(np.mean(scores) + 3 * np.std(scores))
+        threshold = float(np.percentile(scores, 99))
         
         joblib.dump(iso_model, os.path.join(self.model_dir, "isolation_forest_model.pkl"))
         return threshold
@@ -60,8 +60,10 @@ class ModelTrainer:
         # Let's use the new model scores.
         
         final_scores = svm_model.decision_function(X)
-        # Use mean - 3*std to allow for some buffer in normal data
-        threshold = float(np.mean(final_scores) - 3 * np.std(final_scores))
+        # For SVM, decision_function < 0 is anomaly. 
+        # But we use scores < threshold logic. 
+        # Let's find the 1st percentile (since lower is more anomalous)
+        threshold = float(np.percentile(final_scores, 1))
         
         joblib.dump(svm_model, os.path.join(self.model_dir, "one_class_svm_model.pkl"))
         return threshold
@@ -97,9 +99,8 @@ class ModelTrainer:
             X_recon = autoencoder(X_tensor.to(self.device)).cpu().numpy()
             
         recon_error = np.mean((X - X_recon) ** 2, axis=1)
-        threshold = float(np.mean(recon_error) + 3 * np.std(recon_error)) # Using 3 std devs which is standard
-        # Original script used 2*std for autoencoder in test_model.py, but let's stick to 3 for consistency or make it configurable. 
-        # Let's use 3.
+        # Use 99th percentile of reconstruction errors
+        threshold = float(np.percentile(recon_error, 99))
         
         torch.save(autoencoder.state_dict(), os.path.join(self.model_dir, "autoencoder_model.pth"))
         return threshold

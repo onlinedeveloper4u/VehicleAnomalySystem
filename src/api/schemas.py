@@ -17,6 +17,7 @@ class SensorData(BaseModel):
     Ambient_Temperature: float
     Ambient_Humidity: float
     Driving_Speed: float
+    Vehicle_ID: Optional[str] = "default"
 
 class ModelDetail(BaseModel):
     score: List[float]
