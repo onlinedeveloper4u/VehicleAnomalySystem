@@ -78,6 +78,30 @@ docker run -p 10000:10000 -e API_KEY=test vehicle-anomaly-system
   - Header: `X-API-Key: <your-key>`
   - Body: JSON array of sensor records.
 
+## Deployment to Render
+
+I have provided both a `Dockerfile` and a `render.yaml` (Blueprint) to make deployment seamless.
+
+### Option 1: Using the Blueprint (Recommended)
+1. **Push your code** to a GitHub repository.
+2. Sign in to your [Render Dashboard](https://dashboard.render.com/).
+3. Click **New** > **Blueprint**.
+4. Connect your GitHub repository.
+5. Render will automatically detect the `render.yaml` file and create the service.
+6. The `API_KEY` will be automatically generated. You can find it in the service's **Environment** tab.
+
+### Option 2: Manual Web Service
+1. **Push your code** to GitHub.
+2. In Render, click **New** > **Web Service**.
+3. Select your repository.
+4. Set **Runtime** to `Docker`.
+5. Under **Environment Variables**, add:
+   - `API_KEY`: A secret string for authentication.
+   - `MODEL_VERSION`: `v1` (or your desired version).
+6. Click **Create Web Service**.
+
+Render will build the Docker container and expose the API at `https://your-service-name.onrender.com`.
+
 ## Testing
 Run unit tests:
 ```bash
