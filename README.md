@@ -5,8 +5,6 @@ A machine learning system for detecting anomalies in vehicle sensor data using I
 ## Features
 - **Anomaly Detection**: Isolation Forest model for detecting sensor anomalies
 - **REST API**: FastAPI-based API with rate limiting and authentication
-- **Visualization Dashboard**: Streamlit dashboard for monitoring and predictions
-- **Prometheus Metrics**: `/metrics` endpoint for monitoring
 - **Structured Logging**: JSON-formatted logs for observability
 
 ## Quick Start
@@ -33,7 +31,6 @@ uvicorn src.api.main:app --reload
 │   └── config.py      # Centralized configuration
 ├── models/            # Trained model versions
 ├── tests/             # Pytest test suite
-├── dashboard.py       # Streamlit visualization
 ├── train.py           # Training script
 ├── evaluate.py        # Evaluation script
 └── requirements.txt   # Pinned dependencies
