@@ -6,7 +6,7 @@ import time
 from sklearn.metrics import accuracy_score, precision_score, recall_score
 
 # Configuration
-API_URL = "http://127.0.0.1:8001/predict"
+API_URL = "http://127.0.0.1:8002/predict"
 API_KEY = "dev-api-key"  # Matches .env
 
 def generate_scenario(name, duration_sec=60, anomaly_type=None, magnitude=2.0):
@@ -18,23 +18,23 @@ def generate_scenario(name, duration_sec=60, anomaly_type=None, magnitude=2.0):
     
     # Base signals (Normal)
     # Using mostly constant or plausible baselines + noise
-    driving_speed = 60 + 5 * np.sin(time_steps * 0.1) + np.random.normal(0, 0.5, n)
-    motor_rpm = 2500 + 100 * np.sin(time_steps * 0.1) + np.random.normal(0, 20, n)
-    motor_temp = 55 + 2 * np.sin(time_steps * 0.01) + np.random.normal(0, 0.1, n)
+    # Baseline stats from data/normal_data.csv
+    driving_speed = np.random.normal(58.3, 20.6, n)
+    motor_rpm = np.random.normal(2235, 1188, n)
+    motor_temp = np.random.normal(56.0, 15.4, n)
     
-    # Other fields (Normal noise matching training stats)
-    battery_voltage = np.random.normal(350, 20, n)
-    battery_current = np.random.normal(-40, 10, n)
-    battery_temp = np.random.normal(30, 5, n)
-    motor_vibration = np.random.normal(0.6, 0.2, n)
-    motor_torque = np.random.normal(80, 10, n)
-    power_consumption = np.random.normal(15, 2, n)
-    brake_pressure = np.random.normal(0, 0.1, n)
-    tire_pressure = np.random.normal(32, 0.5, n)
-    tire_temp = np.random.normal(40, 1, n)
-    suspension_load = np.random.normal(500, 10, n)
-    ambient_temp = np.random.normal(15, 5, n)
-    ambient_humidity = np.random.normal(50, 5, n)
+    battery_voltage = np.random.normal(352.7, 55.3, n)
+    battery_current = np.random.normal(-47.9, 45.3, n)
+    battery_temp = np.random.normal(33.4, 8.6, n)
+    motor_vibration = np.random.normal(0.52, 0.43, n)
+    motor_torque = np.random.normal(179.8, 76.8, n)
+    power_consumption = np.random.normal(31.7, 16.4, n)
+    brake_pressure = np.random.normal(46.0, 15.4, n)
+    tire_pressure = np.random.normal(31.0, 3.8, n)
+    tire_temp = np.random.normal(33.0, 7.7, n)
+    suspension_load = np.random.normal(195.4, 111.3, n)
+    ambient_temp = np.random.normal(14.1, 9.1, n)
+    ambient_humidity = np.random.normal(47.1, 17.8, n)
 
     is_anomaly = np.zeros(n, dtype=int)
     

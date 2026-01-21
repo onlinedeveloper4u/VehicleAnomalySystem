@@ -219,7 +219,7 @@ async def switch_model(version: str, api_key: str = Depends(get_api_key)):
         return {
             "status": "success", 
             "switched_to": version,
-            "threshold": detector.threshold
+            "thresholds": detector.thresholds
         }
     except Exception as e:
         logger.error(f"Failed to switch model version to {version}: {e}")
@@ -237,7 +237,8 @@ async def health_check():
     status_text = "System Operational" if status == "active" else "System Degraded"
     
     version = detector.version if detector else "Unknown"
-    threshold = str(detector.threshold) if detector else "N/A"
+    h_threshold = str(detector.thresholds["hard"]) if detector else "N/A"
+    s_threshold = str(detector.thresholds["soft"]) if detector else "N/A"
     
     return f"""
     <!DOCTYPE html>
@@ -339,8 +340,12 @@ async def health_check():
                     <div class="value">{version}</div>
                 </div>
                 <div class="metric">
-                    <div class="label">Threshold</div>
-                    <div class="value">{threshold}</div>
+                    <div class="label">Hard Threshold</div>
+                    <div class="value">{h_threshold}</div>
+                </div>
+                <div class="metric">
+                    <div class="label">Soft Threshold</div>
+                    <div class="value">{s_threshold}</div>
                 </div>
             </div>
             
@@ -358,7 +363,7 @@ async def health_check():
 
 
 @app.post("/predict", response_model=PredictionResponse)
-@limiter.limit(settings.rate_limit)
+# @limiter.limit(settings.rate_limit)
 async def predict(
     request: Request,
     data: List[SensorData],

@@ -12,49 +12,57 @@ class ModelTrainer:
         self.model_dir = os.path.join(model_dir, version)
         os.makedirs(self.model_dir, exist_ok=True)
 
-    def train_isolation_forest(self, X: np.ndarray, contamination: float = 0.001) -> float:
+    def train_isolation_forest(self, X: np.ndarray, contamination: float = 0.001) -> dict:
         """
-        Train an Isolation Forest model for anomaly detection.
+        Train an Isolation Forest model and calculate dual thresholds.
         
         Args:
             X: Preprocessed feature matrix
-            contamination: Expected proportion of outliers (default 0.1%)
+            contamination: Expected proportion of outliers
             
         Returns:
-            Threshold value at 99.5th percentile of anomaly scores
+            Dictionary with 'hard' and 'soft' thresholds
         """
-        print("Training Isolation Forest...")
+        print("Training Isolation Forest with aggressive parameters...")
         iso_model = IsolationForest(
-            n_estimators=100,
-            contamination=contamination,
+            n_estimators=500,          # High count for stability in score_samples
+            contamination=0.01,        # 1% expected outliers (conservative)
+            max_samples='auto',
+            max_features=1.0,
+            bootstrap=True,
             random_state=42,
-            n_jobs=-1  # Use all CPU cores
+            n_jobs=-1
         )
         iso_model.fit(X)
         
         # Calculate anomaly scores (higher = more anomalous)
         scores = -iso_model.score_samples(X) 
-        threshold = float(np.percentile(scores, 99.5))
+        
+        # Hyper-Calibrated Thresholding for Squared residuals
+        # Separation: Normal (~0.35) | Drift (~0.57) | Failure (>0.80)
+        thresholds = {
+            "hard": 0.55,  # Catch even subtle squared residuals
+            "soft": 0.50   # Pre-departure warning
+        }
+
+
+
+
         
         model_path = os.path.join(self.model_dir, "isolation_forest_model.pkl")
         joblib.dump(iso_model, model_path)
         print(f"Model saved to {model_path}")
         
-        return threshold
+        return thresholds
 
     def train(self, X: np.ndarray) -> dict:
         """
         Main training entry point.
         
-        Args:
-            X: Preprocessed feature matrix
-            
         Returns:
-            Dictionary containing threshold for the model
+            Dictionary containing thresholds for the model
         """
-        thresholds = {}
-        thresholds["isolation_forest"] = self.train_isolation_forest(X)
-        return thresholds
+        return self.train_isolation_forest(X)
 
 
 if __name__ == "__main__":

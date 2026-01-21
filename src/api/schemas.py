@@ -25,8 +25,9 @@ class SensorData(BaseModel):
 class PredictionResponse(BaseModel):
     """Response schema for anomaly predictions."""
     is_anomaly: List[bool] = Field(description="Anomaly flag for each input record")
-    scores: List[float] = Field(description="Anomaly score for each record (higher = more anomalous)")
-    threshold: float = Field(description="Current threshold used for classification")
+    anomaly_types: List[str] = Field(description="Type of anomaly detected (Normal, Spike, Drift)")
+    scores: List[float] = Field(description="Anomaly score for each record")
+    thresholds: dict = Field(description="Thresholds used for classification")
     version: str = Field(description="Model version used for prediction")
 
 

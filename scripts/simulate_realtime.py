@@ -24,55 +24,83 @@ class VehicleSimulator:
     def generate_record(self):
         self.step += 1
         
-        # Base realistic distributions (from training data audit)
-        # Sinusoidal components for long-term trends
-        cycle = np.sin(self.step * 0.1)
+    def generate_record(self):
+        self.step += 1
         
-        speed = 60 + 15 * cycle + np.random.normal(0, 1.0)
-        rpm = 2500 + 500 * cycle + np.random.normal(0, 50)
-        temp = 55 + 5 * np.sin(self.step * 0.01) + np.random.normal(0, 0.2)
+        # 1. Primary Driver: Driving_Speed
+        if self.anomaly_mode == "failure":
+            driving_speed = 0.0
+        else:
+            # Slower speed oscillations
+            driving_speed = max(0.0, 50.0 + 30.0 * np.sin(self.step / 10.0) + np.random.normal(0, 5))
         
-        # Other fields
-        voltage = np.random.normal(370, 10)
-        current = np.random.normal(-35, 5)
-        vibration = np.random.normal(0.6, 0.1)
+        # 2. Physical Constants
+        gear_ratio = 40.0
+        idle_rpm = 800.0
         
-        # Apply Anomalies
+        # 3. Physically Derived Sensors
+        if driving_speed > 0.1:
+            motor_rpm = (driving_speed * gear_ratio) + np.random.normal(0, 100)
+            motor_torque = 150.0 + 50.0 * np.sin(self.step / 5.0) + np.random.normal(0, 5)
+        else:
+            motor_rpm = idle_rpm + np.random.normal(0, 20)
+            motor_torque = np.random.normal(0, 0.5)
+            
+        motor_temp = 50.0 + (motor_rpm / 100.0) + np.random.normal(0, 2)
+        power_consumption = (motor_rpm * motor_torque) / 9550.0 + np.random.normal(0, 1)
+        
+        # Battery stats correlated with power
+        current = -(power_consumption * 10.0) + np.random.normal(0, 5)
+        voltage = 350.0 + (current / 10.0) + np.random.normal(0, 2)
+        battery_temp = 30.0 + (abs(current) / 50.0) + np.random.normal(0, 1)
+        
+        # Others
+        vibration = 0.1 + (motor_rpm / 5000.0) + np.random.normal(0, 0.05)
+        brake_pressure = np.random.normal(46.0, 2.0)
+        tire_pressure = 32.0 + (motor_temp / 20.0) + np.random.normal(0, 0.5)
+        tire_temp = 30.0 + (driving_speed / 5.0) + np.random.normal(0, 1)
+        suspension_load = 200.0 + 50.0 * np.random.normal(0, 1)
+        ambient_temp = 14.1 + np.random.normal(0, 1)
+        ambient_humidity = 47.1 + np.random.normal(0, 1)
+        
+        # Apply Anomalies (Override Physicals)
         if self.anomaly_mode == "spike":
-            rpm += 6000
+            motor_rpm += 6000
             vibration += 8.0
             self.anomaly_step += 1
             if self.anomaly_step > 5: self.anomaly_mode = None
             
         elif self.anomaly_mode == "drift":
-            temp += self.anomaly_step * 2.0
-            voltage -= self.anomaly_step * 1.0
+            motor_temp += self.anomaly_step * 2.0
+            power_consumption += self.anomaly_step * 0.5
             self.anomaly_step += 1
             if self.anomaly_step > 50: self.anomaly_mode = None
             
         elif self.anomaly_mode == "failure":
-            speed = 0
-            rpm = 8500
+            # Driving_Speed set to 0 above
+            motor_rpm = 8500
             current = 300
+            vibration = 5.0
             self.anomaly_step += 1
             if self.anomaly_step > 15: self.anomaly_mode = None
 
         return {
             "Battery_Voltage": float(voltage),
             "Battery_Current": float(current),
-            "Battery_Temperature": float(35 + 2 * cycle),
-            "Motor_Temperature": float(temp),
+            "Battery_Temperature": float(battery_temp),
+            "Motor_Temperature": float(motor_temp),
             "Motor_Vibration": float(vibration),
-            "Motor_Torque": float(100 + 10 * cycle),
-            "Motor_RPM": float(rpm),
-            "Power_Consumption": float(15 + 5 * cycle),
-            "Brake_Pressure": float(max(0, np.random.normal(0, 0.1))),
-            "Tire_Pressure": float(32 + np.random.normal(0, 0.2)),
-            "Tire_Temperature": float(40 + temp * 0.1),
-            "Suspension_Load": float(500 + 20 * cycle),
-            "Ambient_Temperature": 22.0,
-            "Ambient_Humidity": 45.0,
-            "Driving_Speed": float(speed),
+            "Motor_Torque": float(motor_torque),
+            "Motor_RPM": float(motor_rpm),
+            "Power_Consumption": float(power_consumption),
+
+            "Brake_Pressure": float(brake_pressure),
+            "Tire_Pressure": float(tire_pressure),
+            "Tire_Temperature": float(tire_temp),
+            "Suspension_Load": float(suspension_load),
+            "Ambient_Temperature": float(ambient_temp),
+            "Ambient_Humidity": float(ambient_humidity),
+            "Driving_Speed": float(driving_speed),
             "Vehicle_ID": self.vehicle_id
         }
 

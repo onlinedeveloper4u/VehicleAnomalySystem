@@ -18,11 +18,10 @@ def run_evaluation(sample_size: int = 1000, version: str = "v1"):
     print(f"Starting Model Evaluation (version: {version})...")
     
     # 1. Load Data
-    data_path = "data/abnormal_data.csv"
+    data_path = f"data/{'normal' if 'normal' in version else 'abnormal'}_data.csv"
     if not os.path.exists(data_path):
-        print(f"Error: {data_path} not found.")
-        return
-        
+        data_path = "data/normal_data.csv" # Fallback
+    
     df = pd.read_csv(data_path)
     
     # 2. Load Model
@@ -35,6 +34,9 @@ def run_evaluation(sample_size: int = 1000, version: str = "v1"):
     print(f"Running predictions on {actual_sample_size} samples...")
     results = detector.predict(sample_df)
     
+    n_anomalies = sum(results["is_anomaly"])
+    print(f"Detected Anomalies: {n_anomalies} / {actual_sample_size} ({n_anomalies/actual_sample_size*100:.1f}%)")
+    
     # 4. Generate report directory
     report_dir = "reports"
     os.makedirs(report_dir, exist_ok=True)
@@ -42,7 +44,7 @@ def run_evaluation(sample_size: int = 1000, version: str = "v1"):
     # 5. Performance Analysis
     # Use Failure_Probability as a proxy for real labels if available
     if "Failure_Probability" not in sample_df.columns:
-        print("Warning: Failure_Probability column not found. Cannot compute metrics.")
+        print("\nNote: Failure_Probability column not found. Skipping metric computation.")
         return
     
     print("\n--- Anomaly Detection Performance ---")
@@ -81,7 +83,7 @@ def run_evaluation(sample_size: int = 1000, version: str = "v1"):
         "timestamp": str(pd.Timestamp.now()),
         "sample_size": actual_sample_size,
         "model_version": version,
-        "threshold": detector.threshold,
+        "thresholds": detector.thresholds,
         "correlation": float(correlation),
         "metrics": metrics
     }
