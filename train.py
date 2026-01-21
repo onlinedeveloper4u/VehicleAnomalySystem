@@ -30,10 +30,8 @@ def main():
     # Train the model and get threshold
     thresholds = trainer.train(X_scaled)
     
-    # Apply a safety multiplier for production stability
-    # This prevents minor sensor noise from triggering false alarms
-    # Adjusted to 1.17 to balance sensitivity (avoid misses) vs robustness (avoid false positives)
-    SAFETY_MULTIPLIER = 1.17
+    # Adjusted to 1.15 to balance sensitivity (avoid misses) vs robustness (avoid false positives)
+    SAFETY_MULTIPLIER = 1.15
     stable_thresholds = {k: v * SAFETY_MULTIPLIER for k, v in thresholds.items()}
     
     # Save thresholds
