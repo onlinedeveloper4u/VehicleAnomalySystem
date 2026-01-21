@@ -38,13 +38,15 @@ class ModelTrainer:
         # Calculate anomaly scores (higher = more anomalous)
         scores = -iso_model.score_samples(X) 
         
-        # Hyper-Calibrated Thresholding for Squared residuals
-        # Separation: Normal (~0.35) | Drift (~0.57) | Failure (>0.80)
+        # Balanced Physical & Drift Calibration
+        # - Normal: max 0.54
+        # - Temp Drift (150C): 0.57
+        # - Power Drift: 0.63
+        # - Failure (8500 RPM): 0.66
         thresholds = {
-            "hard": 0.55,  # Catch even subtle squared residuals
-            "soft": 0.50   # Pre-departure warning
+            "hard": 0.57,  # Sensitive to thermal/electrical drift
+            "soft": 0.54   # Pre-drift warning
         }
-
 
 
 
