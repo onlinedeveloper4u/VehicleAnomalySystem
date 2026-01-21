@@ -6,9 +6,9 @@ import os
 import tempfile
 import shutil
 
-from src.models.trainer import ModelTrainer
-from src.models.predictor import AnomalyDetector
-from src.preprocessing.transformer import DataPreprocessor
+from src.ml.trainer import ModelTrainer
+from src.ml.predictor import AnomalyDetector
+from src.ml.transformer import DataPreprocessor
 
 
 @pytest.fixture

@@ -2,8 +2,8 @@ from fastapi import FastAPI, HTTPException, Depends, Security, Request
 from fastapi.security import APIKeyHeader
 from fastapi.responses import PlainTextResponse, HTMLResponse
 from src.api.schemas import SensorData, PredictionResponse, ThresholdConfig, HealthResponse
-from src.models.predictor import AnomalyDetector
-from src.config import get_settings
+from src.ml.predictor import AnomalyDetector
+from src.core.config import get_settings
 import pandas as pd
 from contextlib import asynccontextmanager
 from typing import List

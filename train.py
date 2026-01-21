@@ -1,6 +1,6 @@
 import pandas as pd
-from src.models.trainer import ModelTrainer
-from src.preprocessing.transformer import DataPreprocessor
+from src.ml.trainer import ModelTrainer
+from src.ml.transformer import DataPreprocessor
 import os
 import json
 

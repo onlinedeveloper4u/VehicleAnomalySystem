@@ -3,7 +3,7 @@ import joblib
 import numpy as np
 import os
 import json
-from src.preprocessing.transformer import DataPreprocessor
+from src.ml.transformer import DataPreprocessor
 
 
 class AnomalyDetector:

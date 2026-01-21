@@ -58,7 +58,7 @@ class ModelTrainer:
 
 
 if __name__ == "__main__":
-    from src.preprocessing.transformer import DataPreprocessor
+    from src.ml.transformer import DataPreprocessor
     
     # Load and process data
     raw_data = pd.read_csv("data/normal_data.csv")

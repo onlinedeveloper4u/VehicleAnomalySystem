@@ -3,7 +3,7 @@ import numpy as np
 import os
 import json
 import argparse
-from src.models.predictor import AnomalyDetector
+from src.ml.predictor import AnomalyDetector
 from sklearn.metrics import roc_auc_score, precision_score, recall_score, f1_score
 
 
