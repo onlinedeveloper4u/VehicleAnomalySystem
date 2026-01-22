@@ -8,21 +8,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-@pytest.fixture(scope="module")
-def test_client():
-    """Create a test client with API key set."""
-    os.environ["API_KEY"] = "test-api-key"
-    os.environ["MODEL_VERSION"] = "v1"
-    
-    from src.api.main import app
-    with TestClient(app) as client:
-        yield client
-
-
-@pytest.fixture
-def auth_headers():
-    """Return authentication headers."""
-    return {"X-API-Key": "test-api-key"}
+# Fixtures moved to conftest.py
 
 
 @pytest.fixture
@@ -30,22 +16,16 @@ def sample_payload():
     """Return a sample prediction payload."""
     return [
         {
-            "Battery_Voltage": 350.0,
-            "Battery_Current": 50.0,
-            "Battery_Temperature": 30.0,
-            "Motor_Temperature": 60.0,
-            "Motor_Vibration": 1.0,
-            "Motor_Torque": 150.0,
-            "Motor_RPM": 3000.0,
-            "Power_Consumption": 25.0,
-            "Brake_Pressure": 300.0,
-            "Tire_Pressure": 35.0,
-            "Tire_Temperature": 35.0,
-            "Suspension_Load": 1000.0,
-            "Ambient_Temperature": 25.0,
-            "Ambient_Humidity": 50.0,
-            "Driving_Speed": 60.0,
-            "Vehicle_ID": "test_vehicle"
+            "engine_id": 1,
+            "cycle": 1,
+            "setting1": 0.5,
+            "setting2": 0.01,
+            "setting3": 100.0,
+            "s1": 500.0, "s2": 600.0, "s3": 1400.0, "s4": 1200.0, "s5": 14.0,
+            "s6": 21.0, "s7": 550.0, "s8": 2300.0, "s9": 8000.0, "s10": 1.3,
+            "s11": 47.0, "s12": 520.0, "s13": 2388.0, "s14": 8100.0, "s15": 8.0,
+            "s16": 0.03, "s17": 390, "s18": 2388, "s19": 100.0, "s20": 38.0,
+            "s21": 23.0
         }
     ]
 

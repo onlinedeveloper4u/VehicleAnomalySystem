@@ -1,33 +1,25 @@
 import pytest
-from fastapi.testclient import TestClient
-from src.api.main import app
 import os
-import json
 
-# Set API Key for testing
-os.environ["API_KEY"] = "test-key"
+# Fixtures from conftest.py are automatically available
 
-client = TestClient(app)
-
-def test_health_check_no_models():
-    # Since we haven't trained models in this test environment, it might report unhealthy if models missing
-    # But detector loads whatever is in "models" dir. If empty, it loads fine but dicts are empty?
-    # Trainer needs to be run first for full test. 
-    # But let's check basic connectivity.
-    response = client.get("/health")
+def test_health_check(test_client):
+    """Test health check endpoint."""
+    response = test_client.get("/health")
     assert response.status_code == 200
-    # Response detail depends on whether models exist on disk
 
-def test_predict_endpoint_unauthorized():
-    response = client.post("/predict", json=[])
+def test_predict_endpoint_unauthorized(test_client):
+    """Test access without API key is forbidden."""
+    response = test_client.post("/predict", json=[])
     assert response.status_code == 403
 
-def test_predict_endpoint_authorized_but_bad_data():
-    headers = {"X-API-Key": "test-key"}
-    # Missing fields
-    data = [{"Battery_Voltage": 12.0}] 
-    response = client.post("/predict", json=data, headers=headers)
+def test_predict_endpoint_authorized_but_bad_data(test_client):
+    """Test validation error for incomplete data."""
+    # Use key defined in conftest.py
+    headers = {"X-API-Key": "test-api-key"}
+    
+    # Missing cycle and engine_id, just s1
+    data = [{"s1": 500.0, "setting1": 0.5}] 
+    
+    response = test_client.post("/predict", json=data, headers=headers)
     assert response.status_code == 422 # Validation Error
-
-# We need a fixture to train models or mock them for full prediction test
-# For now, let's assume we can run the integration test if models exist.

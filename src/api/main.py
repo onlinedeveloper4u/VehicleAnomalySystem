@@ -237,8 +237,8 @@ async def health_check():
     status_text = "System Operational" if status == "active" else "System Degraded"
     
     version = detector.version if detector else "Unknown"
-    h_threshold = str(detector.thresholds["hard"]) if detector else "N/A"
-    s_threshold = str(detector.thresholds["soft"]) if detector else "N/A"
+    h_threshold = str(detector.thresholds.get("p95", "N/A")) if detector else "N/A"
+    s_threshold = str(detector.thresholds.get("p99", "N/A")) if detector else "N/A"
     
     return f"""
     <!DOCTYPE html>

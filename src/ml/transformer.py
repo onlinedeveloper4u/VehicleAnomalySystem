@@ -1,123 +1,197 @@
+"""
+Data Preprocessor for NASA CMAPSS Turbofan Engine Data
+
+Features:
+- Handles 21 sensor measurements + 3 operational settings
+- Removes near-constant sensors (s1, s5, s6, s10, s16, s18, s19)
+- Optional operating regime normalization for multi-condition datasets
+- Compatible with single-record and batch predictions
+"""
+
 import pandas as pd
 import numpy as np
 import joblib
 from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
 import os
+from typing import List, Optional
+
 
 class DataPreprocessor:
-    def __init__(self, sensor_columns=None):
-        if sensor_columns is None:
-            # Re-integrated Temp and Power for Drift sensitivity
-            self.sensor_columns = [
-                "Battery_Current", "Motor_Vibration", "Motor_RPM", 
-                "Driving_Speed", "Motor_Temperature", "Power_Consumption",
-                "Motor_Torque"
-            ]
-        else:
-            self.sensor_columns = sensor_columns
+    """Preprocessor for CMAPSS turbofan sensor data."""
+    
+    # Near-constant sensors to exclude (low variance, no degradation signal)
+    CONSTANT_SENSORS = ['s1', 's5', 's6', 's10', 's16', 's18', 's19']
+    
+    # All sensor columns
+    ALL_SENSORS = [f's{i}' for i in range(1, 22)]
+    
+    # Useful sensors (after removing near-constant)
+    # Useful sensors (after removing near-constant)
+    USEFUL_SENSORS = [s for s in ALL_SENSORS if s not in ['s1', 's5', 's6', 's10', 's16', 's18', 's19']]
+    
+    # Operational settings
+    SETTING_COLS = ['setting1', 'setting2', 'setting3']
+    
+    def __init__(self, 
+                 sensor_columns: Optional[List[str]] = None,
+                 use_regime_normalization: bool = False,
+                 n_regimes: int = 6):
+        """
+        Initialize preprocessor.
+        
+        Args:
+            sensor_columns: List of sensor columns to use. Defaults to USEFUL_SENSORS.
+            use_regime_normalization: If True, normalize sensors per operating regime.
+                                     Recommended for FD002/FD004 (multi-condition).
+            n_regimes: Number of operating regimes for KMeans clustering.
+        """
+        self.sensor_columns = sensor_columns or self.USEFUL_SENSORS
+        self.use_regime_normalization = use_regime_normalization
+        self.n_regimes = n_regimes
         
         self.scaler = StandardScaler()
+        self.kmeans = None  # For regime clustering
+        self.regime_stats = {}  # Mean/std per regime per sensor
+        self.feature_columns = None
+        self.fitted = False
 
-    def fit(self, data: pd.DataFrame, window=10):
-        """Fits the scaler on CLEANED raw sensor data."""
-        cleaned = self.clean_sensor_data(data)
-        self.scaler.fit(cleaned[self.sensor_columns])
+    def fit(self, data: pd.DataFrame) -> 'DataPreprocessor':
+        """
+        Fit the preprocessor on training data.
         
-        # Determine final feature columns
-        dummy_transformed = self.transform(data.head(window + 5), window=window)
+        Args:
+            data: Training DataFrame with sensor columns
+        """
+        if self.use_regime_normalization:
+            self._fit_regime_normalizer(data)
+            self.feature_columns = [f'{c}_norm' for c in self.sensor_columns]
+        else:
+            self.feature_columns = self.sensor_columns
+        
+        # Fit scaler on sensor values
+        X = data[self.sensor_columns].values
+        X = np.nan_to_num(X, nan=0.0)
+        self.scaler.fit(X)
+        
+        self.fitted = True
         return self
 
-    def create_rolling_features(self, data: pd.DataFrame, window=10):
-        """Creates physical ratio features for anomaly detection."""
-        data_rolled = data.copy()
+    def _fit_regime_normalizer(self, data: pd.DataFrame):
+        """Fit KMeans on operational settings to identify operating regimes."""
+        settings = data[self.SETTING_COLS].values
         
-        # 1. Speed/RPM Physical Manifold
-        if "Driving_Speed" in data.columns and "Motor_RPM" in data.columns:
-            # Normal is ~40. Failure is 8500.
-            data_rolled["RPM_Speed_Ratio"] = data["Motor_RPM"] / (data["Driving_Speed"] + 1.0)
-            
-            # Manifold Error: Deviation from expected RPM
-            expected_rpm = data["Driving_Speed"] * 40.0
-            data_rolled["Manifold_Error"] = abs(data["Motor_RPM"] - expected_rpm)
-            
-        # 2. Power Efficiency Manifold (RPM * Torque / 9550 = Power)
-        if all(col in data.columns for col in ["Motor_RPM", "Motor_Torque", "Power_Consumption"]):
-            # Note: Features are SCALED here, so we use raw column names if we want raw ratios,
-            # but usually better to use scaled values or calculate from raw before scaling.
-            # However, for "Pure ML", the model identifies deviations in the SCALED manifold too.
-            # To catch "Drift", we need a tight relationship.
-            expected_power = (data["Motor_RPM"] * data["Motor_Torque"]) / 9550.0
-            data_rolled["Power_Manifold_Error"] = abs(data["Power_Consumption"] - expected_power)
-            
-        return data_rolled.ffill().bfill().fillna(0)
+        self.kmeans = KMeans(n_clusters=self.n_regimes, random_state=42, n_init=10)
+        regimes = self.kmeans.fit_predict(settings)
+        
+        # Compute per-regime statistics
+        data_temp = data.copy()
+        data_temp['regime'] = regimes
+        
+        for regime in range(self.n_regimes):
+            regime_data = data_temp[data_temp['regime'] == regime]
+            self.regime_stats[regime] = {}
+            for col in self.sensor_columns:
+                self.regime_stats[regime][col] = {
+                    'mean': regime_data[col].mean(),
+                    'std': regime_data[col].std() + 1e-8  # Avoid division by zero
+                }
 
-    def transform(self, data: pd.DataFrame, window=10, return_df=False) -> np.ndarray:
-        """Transforms raw data into feature vectors."""
-        # 1. Clean (Clips negative values)
-        cleaned = self.clean_sensor_data(data)
+    def transform(self, data: pd.DataFrame, return_df: bool = False) -> np.ndarray:
+        """
+        Transform sensor data to feature matrix.
         
-        # 2. Scale Raw Sensors
-        scaled_raw_values = self.scaler.transform(cleaned[self.sensor_columns])
-        scaled_raw_df = pd.DataFrame(scaled_raw_values, columns=self.sensor_columns, index=cleaned.index)
-        
-        # 3. Create Physical Ratios & Manifold Errors
-        featured = self.create_rolling_features(scaled_raw_df, window=window)
-        
-        # 4. Handle feature column selection
-        if not hasattr(self, 'feature_columns'):
-            self.feature_columns = featured.columns.tolist()
+        Args:
+            data: DataFrame with sensor columns
+            return_df: If True, return DataFrame instead of numpy array
             
+        Returns:
+            Scaled feature matrix (numpy array or DataFrame)
+        """
+        if not self.fitted:
+            raise RuntimeError("Preprocessor not fitted. Call fit() first.")
+        
+        df = data.copy()
+        
+        # Ensure all sensor columns exist (handle missing with defaults)
+        for col in self.sensor_columns:
+            if col not in df.columns:
+                df[col] = 0.0
+        
+        if self.use_regime_normalization and self.kmeans is not None:
+            # Assign operating regimes
+            settings = df[self.SETTING_COLS].values
+            regimes = self.kmeans.predict(settings)
+            df['regime'] = regimes
+            
+            # Normalize each sensor by regime statistics
+            for col in self.sensor_columns:
+                normalized = np.zeros(len(df))
+                for regime in range(self.n_regimes):
+                    mask = df['regime'] == regime
+                    if mask.sum() > 0:
+                        stats = self.regime_stats[regime][col]
+                        normalized[mask] = (df.loc[mask, col] - stats['mean']) / stats['std']
+                df[f'{col}_norm'] = normalized
+            
+            X = df[self.feature_columns].values
+        else:
+            X = df[self.sensor_columns].values
+            X = self.scaler.transform(X)
+        
+        X = np.nan_to_num(X, nan=0.0)
+        
         if return_df:
-            return featured[self.feature_columns]
-            
-        return featured[self.feature_columns].values
-
-    def fit_transform(self, data: pd.DataFrame, window=10) -> np.ndarray:
-        """Fits and transforms the data."""
-        self.fit(data, window=window)
-        return self.transform(data, window=window)
-
-    def clean_sensor_data(self, data: pd.DataFrame) -> pd.DataFrame:
-        """Enforces physical sanity bounds on raw sensor data."""
-        cleaned = data.copy()
-        bounds = {
-            "Battery_Voltage": (100, 500),
-            "Battery_Current": (-500, 500),
-            "Battery_Temperature": (-40, 100),
-            "Motor_Temperature": (-40, 150),
-            "Motor_Vibration": (0, 10),
-            "Motor_RPM": (0, 10000),      # Force non-negative
-            "Driving_Speed": (0, 250),    # Force non-negative
-            "Tire_Pressure": (10, 60),
-            "Brake_Pressure": (0, 5000),
-            "Motor_Torque": (-1000, 1000),
-            "Power_Consumption": (0, 1000)
-        }
+            return pd.DataFrame(X, columns=self.feature_columns, index=df.index)
         
-        for col, (min_val, max_val) in bounds.items():
-            if col in cleaned.columns:
-                cleaned[col] = cleaned[col].clip(lower=min_val, upper=max_val)
-        
-        return cleaned.ffill().bfill()
+        return X
+
+    def fit_transform(self, data: pd.DataFrame) -> np.ndarray:
+        """Fit and transform in one step."""
+        self.fit(data)
+        return self.transform(data)
 
     def save(self, filepath: str):
-        """Saves the scaler and feature metadata."""
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        data_to_save = {
-            "scaler": self.scaler,
-            "feature_columns": getattr(self, "feature_columns", self.sensor_columns)
+        """Save preprocessor state to file."""
+        os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else '.', exist_ok=True)
+        
+        state = {
+            'scaler': self.scaler,
+            'sensor_columns': self.sensor_columns,
+            'feature_columns': self.feature_columns,
+            'use_regime_normalization': self.use_regime_normalization,
+            'n_regimes': self.n_regimes,
+            'kmeans': self.kmeans,
+            'regime_stats': self.regime_stats,
+            'fitted': self.fitted
         }
-        joblib.dump(data_to_save, filepath)
+        joblib.dump(state, filepath)
 
-    def load(self, filepath: str):
-        """Loads the scaler and feature metadata."""
+    def load(self, filepath: str) -> 'DataPreprocessor':
+        """Load preprocessor state from file."""
         if not os.path.exists(filepath):
-            raise FileNotFoundError(f"Scaler file not found: {filepath}")
-        loaded_data = joblib.load(filepath)
-        if isinstance(loaded_data, dict) and "scaler" in loaded_data:
-            self.scaler = loaded_data["scaler"]
-            self.feature_columns = loaded_data["feature_columns"]
+            raise FileNotFoundError(f"Preprocessor file not found: {filepath}")
+        
+        state = joblib.load(filepath)
+        
+        # Handle both old (scaler only) and new (full state) formats
+        if isinstance(state, dict):
+            self.scaler = state.get('scaler', StandardScaler())
+            self.sensor_columns = state.get('sensor_columns', self.USEFUL_SENSORS)
+            self.feature_columns = state.get('feature_columns', self.sensor_columns)
+            self.use_regime_normalization = state.get('use_regime_normalization', False)
+            self.n_regimes = state.get('n_regimes', 6)
+            self.kmeans = state.get('kmeans')
+            self.regime_stats = state.get('regime_stats', {})
+            self.fitted = state.get('fitted', True)
         else:
-            self.scaler = loaded_data
+            # Legacy format: just the scaler
+            self.scaler = state
             self.feature_columns = self.sensor_columns
+            self.fitted = True
+        
         return self
+
+
+# Backward compatibility alias
+CMAPSSPreprocessor = DataPreprocessor
